@@ -1,0 +1,23 @@
+name: Bug report
+description: Report a reproducible collector, persistence, or CLI issue.
+labels: [bug]
+body:
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: HostDelta, Python, distribution and systemd versions; enabled collector types.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction and expected behavior
+      description: Include minimal steps, actual behavior and expected behavior. Never include credentials or private logs.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized evidence
+      description: Relevant source error codes, coverage warnings or failing test names. Review internal addresses and paths before posting.

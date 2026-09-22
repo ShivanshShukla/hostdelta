@@ -1,0 +1,10 @@
+[Unit]
+Description=Record HostDelta state every 15 minutes
+
+[Timer]
+OnStartupSec=2min
+OnUnitActiveSec=15min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

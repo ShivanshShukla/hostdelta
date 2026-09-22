@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hostdelta"
+version = "0.2.0"
+description = "Catch up on your server: state changes, events, and an evidence-based briefing."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = []
+classifiers = ["Development Status :: 4 - Beta", "Environment :: Console", "Operating System :: POSIX :: Linux", "Programming Language :: Python :: 3"]
+
+[project.urls]
+Homepage = "https://github.com/haramj/hostdelta"
+Documentation = "https://github.com/haramj/hostdelta/tree/main/docs"
+Issues = "https://github.com/haramj/hostdelta/issues"
+Discussions = "https://github.com/haramj/hostdelta/discussions"
+
+[project.scripts]
+hostdelta = "hostdelta.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

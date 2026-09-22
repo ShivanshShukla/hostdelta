@@ -1,0 +1,37 @@
+name: test
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  tests:
+    strategy:
+      matrix:
+        python: ['3.10', '3.12', '3.14']
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m unittest discover -s tests -v
+        env:
+          PYTHONPATH: src
+      - run: python scripts/build_release.py
+      - run: python dist/hostdelta.pyz demo --json > demo.json
+      - run: python -m pip install .
+      - run: hostdelta --version
+      - name: Linux live smoke test
+        if: runner.os == 'Linux'
+        run: |
+          export HOSTDELTA_STATE_DIR="$RUNNER_TEMP/hostdelta"
+          hostdelta init --json
+          hostdelta snapshot --label smoke --json
+          hostdelta diff HEAD~1 HEAD --json
+          hostdelta record --actor ci-agent --kind failure --message 'Synthetic CI failure' --json
+          hostdelta brief --consumer ci-agent --json > brief.json
+          python -c 'import json; r=json.load(open("brief.json")); assert r["schema_version"]==1; assert r["current_state"]["domains"]["packages"]["status"]=="ok"; assert r["current_state"]["domains"]["system"]["status"]=="ok"; assert r["event_counts"]["agent_failure"]==1'
+          hostdelta config --check examples/hostdelta.json --json
+          hostdelta collect --config examples/hostdelta.json --json > collection.json || test "$?" -eq 3
+          hostdelta events --since 1h --json
+          hostdelta brief --archive --since 1h --json

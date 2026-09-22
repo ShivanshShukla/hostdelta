@@ -1,0 +1,23 @@
+[Unit]
+Description=HostDelta continuous host evidence collector
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/hostdelta daemon --config %h/.config/hostdelta/config.json
+EnvironmentFile=-%h/.config/hostdelta/credentials.env
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=60
+KillMode=control-group
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

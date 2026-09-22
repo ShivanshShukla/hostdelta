@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "interval_seconds": 30,
+  "retention_days": 30,
+  "adapters": [
+    {
+      "name": "lab-proxmox",
+      "type": "proxmox",
+      "url": "https://pve.example.org:8006",
+      "token_id_env": "PROXMOX_TOKEN_ID",
+      "token_env": "PROXMOX_TOKEN_SECRET",
+      "timeout_seconds": 5
+    }
+  ]
+}

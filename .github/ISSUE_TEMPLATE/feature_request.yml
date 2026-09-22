@@ -1,0 +1,23 @@
+name: Feature request
+description: Propose an operational use case or improvement.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Operational problem
+      description: What are you trying to understand about your host? Describe your current workaround.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior and evidence
+      description: Describe the desired output, available evidence, and alternatives.
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Environment and constraints
+      description: Distribution, permissions, data volume, privacy needs, and validation ideas. Omit secrets.

@@ -1,0 +1,26 @@
+name: Environment validation
+description: Share sanitized Linux, OpenStack, or Proxmox validation results.
+labels: [validation]
+body:
+  - type: markdown
+    attributes:
+      value: Follow docs/live-validation.md. Do not attach raw databases, credentials, or private logs.
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment and versions
+      description: HostDelta commit, OS, Python, systemd, platform version, and enabled sources.
+    validations:
+      required: true
+  - type: textarea
+    id: results
+    attributes:
+      label: Checks and results
+      description: Commands, expected and observed behavior, sanitized evidence, and checks not performed.
+    validations:
+      required: true
+  - type: textarea
+    id: gaps
+    attributes:
+      label: Gaps and follow-up
+      description: Missing permissions, unavailable sources, failures, and suggested documentation changes.

@@ -1,0 +1,10 @@
+[Unit]
+Description=HostDelta periodic state snapshot
+
+[Service]
+Type=oneshot
+# User unit. Install the zipapp here, or edit this absolute path.
+ExecStart=%h/.local/bin/hostdelta snapshot
+TimeoutStartSec=30
+UMask=0077
+NoNewPrivileges=true

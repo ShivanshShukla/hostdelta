@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "interval_seconds": 30,
+  "snapshot_interval_seconds": 900,
+  "retention_days": 30,
+  "journal": true,
+  "application_logs": [],
+  "http_logs": [],
+  "services": [],
+  "failure_threshold": 2,
+  "recovery_threshold": 2,
+  "tcp": {"enabled": false, "mode": "sample"},
+  "adapters": []
+}

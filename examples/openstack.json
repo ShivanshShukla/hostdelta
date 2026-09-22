@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "interval_seconds": 30,
+  "retention_days": 30,
+  "journal": true,
+  "services": [],
+  "adapters": [
+    {
+      "name": "lab-openstack",
+      "type": "openstack",
+      "url": "https://identity.example.org:5000/v3",
+      "credential_id_env": "OS_APPLICATION_CREDENTIAL_ID",
+      "credential_secret_env": "OS_APPLICATION_CREDENTIAL_SECRET",
+      "timeout_seconds": 5,
+      "services": {
+        "compute": "https://compute.example.org:8774/v2.1",
+        "image": "https://image.example.org:9292/v2"
+      }
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and ideas
+    url: https://github.com/haramj/hostdelta/discussions
+    about: Ask for help, discuss ideas, or share your setup.
+  - name: Private vulnerability report
+    url: https://github.com/haramj/hostdelta/security/advisories/new
+    about: Report security vulnerabilities privately. Never post credentials in an issue.

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HostDelta application log envelope v1",
+  "type": "object",
+  "required": ["schema_version", "timestamp", "level", "service", "event", "message"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "level": {"enum": ["TRACE", "DEBUG", "INFO", "NOTICE", "WARN", "WARNING", "ERROR", "CRITICAL", "FATAL"]},
+    "service": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {"name": {"type": "string", "minLength": 1}, "environment": {"type": "string"}, "version": {"type": ["string", "null"]}}
+    },
+    "event": {"type": "object", "required": ["name"], "properties": {"name": {"type": "string"}}},
+    "message": {"type": "string"},
+    "trace_id": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
+    "span_id": {"type": "string", "pattern": "^[0-9a-f]{16}$"},
+    "run_id": {"type": "string"},
+    "attributes": {"type": "object"},
+    "error": {"type": "object", "properties": {"type": {"type": "string"}, "message": {"type": "string"}}}
+  }
+}

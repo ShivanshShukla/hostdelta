@@ -1,5 +1,8 @@
 # HostDelta
 
+[![Tests](https://github.com/haramj/hostdelta/actions/workflows/test.yml/badge.svg)](https://github.com/haramj/hostdelta/actions/workflows/test.yml)
+[![Contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen)](CONTRIBUTING.md)
+
 **Catch up on your server.**
 
 HostDelta is a local change-briefing CLI for Linux hosts and VMs.
@@ -64,9 +67,11 @@ correlation does not establish that an update caused an incident.
 
 ## Quick start
 
-From a source checkout on a Linux host:
+On a Linux host with Git and Python 3.10+ installed:
 
 ```bash
+git clone https://github.com/haramj/hostdelta.git
+cd hostdelta
 export PATH="$PWD/bin:$PATH"
 hostdelta init
 hostdelta brief --since 24h
@@ -193,7 +198,7 @@ own source or artifacts; a matching package name on PyPI does not establish prov
 
 ## Limitations and readiness
 
-- **Beta, not deployment certification.** Local verification covered macOS/Python 3.14 tests, subprocess lifecycle, loopback HTTP integration and packaging. Real systemd Linux/OpenStack/Proxmox acceptance remains to be completed in the target environment; a configured CI workflow is not a completed CI run.
+- **Beta, not deployment certification.** The [initial CI run](https://github.com/haramj/hostdelta/actions/runs/35689379982) passed tests and packaging on Linux and macOS with Python 3.10, 3.12, and 3.14, including Linux host smoke checks. Real service lifecycle and OpenStack/Proxmox acceptance remains to be completed in the target environment.
 - **Linux collection.** Live host collection targets systemd Linux. macOS supports the demo, application instrumentation, archive tools and tests, not live host snapshots.
 - **Incomplete evidence stays visible.** Permissions, missing logs, rotation, retention and read limits can leave gaps. Unobserved activity cannot be reconstructed, and a clean report does not prove a healthy host.
 - **Observed state, not restoration.** Snapshots are not atomic machine images. Changes reverted between observations can be missed. Restart counts and outage intervals are bounded by the evidence and sampling frequency.

@@ -60,6 +60,20 @@ logger.info("Settlement complete", extra={
 })
 ```
 
+A complete copyable version lives in
+[`examples/stdlib_logging.py`](../examples/stdlib_logging.py). It attaches
+`JsonFormatter` to a `logging.StreamHandler` bound to **stdout**, emits one
+synthetic `inventory.stock.checked` event, and does not touch the root logger.
+Run it with:
+
+```bash
+PYTHONPATH=src python3 examples/stdlib_logging.py
+```
+
+Redirect stdout to a file if you want HostDelta to collect the same envelope
+from an `application_logs` path. Existing applications can reuse the handler
+setup without switching to `StructuredLogger`.
+
 Configure handler ownership and propagation in your application to avoid duplicate
 records. The SDK never reconfigures the root logger.
 

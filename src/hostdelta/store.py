@@ -2,10 +2,10 @@
 
 import json
 import os
-from pathlib import Path
 import re
 import sqlite3
 import time
+from pathlib import Path
 
 DEFAULT_WATCH = ["/etc/systemd/system", "/etc/netplan", "/etc/ssh/sshd_config"]
 

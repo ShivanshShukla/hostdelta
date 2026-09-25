@@ -3,7 +3,9 @@
 import json
 import os
 import re
+import shutil
 import sqlite3
+import tempfile
 import time
 from pathlib import Path
 
@@ -86,16 +88,16 @@ class Store:
             raise ValueError("Destination path aliases source database.")
         if dest.exists():
             raise ValueError(f"Destination file already exists: {dest}")
+        if not dest.parent.is_dir():
+            raise ValueError(f"Destination directory does not exist: {dest.parent}")
+
+        tmp_dir = tempfile.mkdtemp(dir=dest.parent, prefix=".hostdelta-backup-")
+        os.chmod(tmp_dir, 0o700)
+        tmp_file = Path(tmp_dir) / "backup.sqlite3"
+        dest_linked = False
 
         try:
-            fd = os.open(dest, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
-            os.close(fd)
-        except OSError as exc:
-            raise ValueError(f"Cannot create destination file {dest}: {exc}") from exc
-
-        created = True
-        try:
-            target_db = sqlite3.connect(dest, timeout=timeout)
+            target_db = sqlite3.connect(tmp_file, timeout=timeout)
             try:
                 start_time = time.monotonic()
                 deadline = start_time + float(timeout)
@@ -108,14 +110,28 @@ class Store:
             finally:
                 target_db.close()
 
+            os.chmod(tmp_file, 0o600)
+
+            try:
+                os.link(tmp_file, dest)
+            except FileExistsError as exc:
+                raise ValueError(f"Destination file already exists: {dest}") from exc
+            except OSError:
+                if dest.exists() or dest.is_symlink():
+                    raise ValueError(f"Destination file already exists or is a symlink: {dest}")
+                os.replace(tmp_file, dest)
+
+            dest_linked = True
             return {"version": 1, "status": "success", "destination": str(dest), "size_bytes": dest.stat().st_size}
         except Exception:
-            if created and dest.exists():
+            if dest_linked and dest.exists():
                 try:
                     dest.unlink()
                 except OSError:
                     pass
             raise
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
     def setting(self, key, default=None):
         row = self.db.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()

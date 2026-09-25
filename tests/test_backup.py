@@ -150,6 +150,25 @@ class BackupTests(unittest.TestCase):
         finally:
             target_conn.close()
 
+    def test_toctou_symlink_replacement_attempt(self):
+        dest_path = Path(self.tmp.name) / "toctou.db"
+        target_sensitive = Path(self.tmp.name) / "sensitive.txt"
+        target_sensitive.write_text("sensitive data")
+
+        original_link = os.link
+        def sneaky_link(src, dst):
+            dst_path = Path(dst)
+            if not dst_path.exists():
+                dst_path.symlink_to(target_sensitive)
+            return original_link(src, dst)
+
+        with patch("os.link", side_effect=sneaky_link):
+            with self.assertRaises(ValueError) as cm:
+                self.store.backup(dest_path)
+            self.assertIn("already exists", str(cm.exception))
+        
+        self.assertEqual(target_sensitive.read_text(), "sensitive data")
+
 
 if __name__ == "__main__":
     unittest.main()

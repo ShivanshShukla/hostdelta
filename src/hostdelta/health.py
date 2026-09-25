@@ -1,10 +1,10 @@
 """Systemd invocation tracking and optional sampled Linux TCP connection events."""
 
 import hashlib
-from pathlib import Path
 import socket
 import struct
 import subprocess
+from pathlib import Path
 
 from .collect import run
 from .model import stamp, utcnow
@@ -82,7 +82,7 @@ def tcp(previous=None, root=Path("/proc/net"), now=None):
             raise ValueError("TCP sample exceeds 10000 sockets")
         for item in sockets.values():
             local = (item["local_address"], item["local_port"])
-            item["direction"] = "likely_inbound" if local in listeners or ("0.0.0.0", local[1]) in listeners or ("::", local[1]) in listeners else "unknown"
+            item["direction"] = "likely_inbound" if local in listeners or ("0.0.0.0", local[1]) in listeners or ("::", local[1]) in listeners else "unknown"  # nosec B104
         events = []
         old = previous.get("sockets")
         if old is not None:

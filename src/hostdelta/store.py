@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import re
 import sqlite3
+import time
 
 DEFAULT_WATCH = ["/etc/systemd/system", "/etc/netplan", "/etc/ssh/sshd_config"]
 
@@ -72,6 +73,49 @@ class Store:
 
     def close(self):
         self.db.close()
+
+    def backup(self, destination, timeout=30.0):
+        dest = Path(destination).expanduser().absolute()
+        source_path = self.directory / "state.sqlite3"
+
+        if dest.is_symlink() or os.path.islink(dest):
+            raise ValueError(f"Destination path is a symlink: {dest}")
+        if dest == source_path or dest.parent == self.directory:
+            raise ValueError("Destination path cannot alias source database or state directory.")
+        if source_path.exists() and dest.exists() and os.path.samefile(dest, source_path):
+            raise ValueError("Destination path aliases source database.")
+        if dest.exists():
+            raise ValueError(f"Destination file already exists: {dest}")
+
+        try:
+            fd = os.open(dest, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
+            os.close(fd)
+        except OSError as exc:
+            raise ValueError(f"Cannot create destination file {dest}: {exc}") from exc
+
+        created = True
+        try:
+            target_db = sqlite3.connect(dest, timeout=timeout)
+            try:
+                start_time = time.monotonic()
+                deadline = start_time + float(timeout)
+
+                def progress(status, remaining, total):
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError(f"Backup operation timed out after {timeout}s due to lock contention.")
+
+                self.db.backup(target_db, pages=250, progress=progress, sleep=0.05)
+            finally:
+                target_db.close()
+
+            return {"version": 1, "status": "success", "destination": str(dest), "size_bytes": dest.stat().st_size}
+        except Exception:
+            if created and dest.exists():
+                try:
+                    dest.unlink()
+                except OSError:
+                    pass
+            raise
 
     def setting(self, key, default=None):
         row = self.db.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()

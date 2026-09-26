@@ -1,9 +1,11 @@
 from contextlib import redirect_stdout, redirect_stderr
 from datetime import datetime, timezone
+import errno
 import io
 import json
 import os
 from pathlib import Path
+import shutil
 import sqlite3
 import tempfile
 import unittest
@@ -168,6 +170,151 @@ class BackupTests(unittest.TestCase):
             self.assertIn("already exists", str(cm.exception))
         
         self.assertEqual(target_sensitive.read_text(), "sensitive data")
+
+    def test_publish_link_success_removes_tmp(self):
+        tmp_file = Path(self.tmp.name) / "source.tmp"
+        tmp_file.write_text("backup data")
+        dest_path = Path(self.tmp.name) / "published.db"
+
+        from hostdelta.store import _publish_no_clobber
+        _publish_no_clobber(str(tmp_file), str(dest_path))
+
+        self.assertTrue(dest_path.is_file())
+        self.assertEqual(dest_path.read_text(), "backup data")
+        self.assertFalse(tmp_file.exists())
+
+    def test_backup_removes_temp_directory_on_success_and_failure(self):
+        dest_success = Path(self.tmp.name) / "temp_cleanup_ok.db"
+        dest_failure = Path(self.tmp.name) / "temp_cleanup_fail.db"
+
+        self.store.backup(dest_success)
+        self.assertTrue(dest_success.exists())
+        leftover_dirs_1 = [p for p in Path(self.tmp.name).glob(".hostdelta-backup-*")]
+        self.assertEqual(leftover_dirs_1, [])
+
+        with patch("sqlite3.connect", side_effect=sqlite3.OperationalError("disk error")):
+            with self.assertRaises(sqlite3.OperationalError):
+                self.store.backup(dest_failure)
+        self.assertFalse(dest_failure.exists())
+        leftover_dirs_2 = [p for p in Path(self.tmp.name).glob(".hostdelta-backup-*")]
+        self.assertEqual(leftover_dirs_2, [])
+
+    def test_publish_fails_when_dest_preexists(self):
+        tmp_file = Path(self.tmp.name) / "source.tmp"
+        tmp_file.write_text("new backup data")
+        dest_path = Path(self.tmp.name) / "existing_dest.db"
+        dest_path.write_text("original content")
+
+        from hostdelta.store import _publish_no_clobber
+        with self.assertRaises(ValueError) as cm:
+            _publish_no_clobber(str(tmp_file), str(dest_path))
+        self.assertIn("already exists", str(cm.exception))
+        self.assertEqual(dest_path.read_text(), "original content")
+        self.assertFalse(tmp_file.exists())
+
+    def test_concurrent_destination_creation_fails_without_overwrite(self):
+        tmp_file = Path(self.tmp.name) / "source.tmp"
+        tmp_file.write_text("backup content")
+        dest_path = Path(self.tmp.name) / "concurrent.db"
+
+        original_link = os.link
+        def sneaky_link(src, dst):
+            Path(dst).write_text("sentinel content")
+            return original_link(src, dst)
+
+        from hostdelta.store import _publish_no_clobber
+        with patch("os.link", side_effect=sneaky_link):
+            with self.assertRaises(ValueError) as cm:
+                _publish_no_clobber(str(tmp_file), str(dest_path))
+            self.assertIn("already exists", str(cm.exception))
+
+        self.assertEqual(dest_path.read_text(), "sentinel content")
+        self.assertFalse(tmp_file.exists())
+
+        # Also test O_EXCL fallback concurrency
+        tmp_file2 = Path(self.tmp.name) / "source2.tmp"
+        tmp_file2.write_text("backup content 2")
+        dest_path2 = Path(self.tmp.name) / "concurrent_excl.db"
+
+        original_open = os.open
+        def sneaky_open(path, flags, mode=0o777):
+            if str(path) == str(dest_path2) and (flags & os.O_CREAT):
+                Path(path).write_text("sentinel content 2")
+            return original_open(path, flags, mode)
+
+        with patch("os.link", side_effect=OSError(errno.EXDEV, "Cross-device link")), patch("os.open", side_effect=sneaky_open):
+            with self.assertRaises(ValueError) as cm:
+                _publish_no_clobber(str(tmp_file2), str(dest_path2))
+            self.assertIn("already exists", str(cm.exception))
+
+        self.assertEqual(dest_path2.read_text(), "sentinel content 2")
+        self.assertFalse(tmp_file2.exists())
+
+    def test_fallback_triggered_on_exdev(self):
+        tmp_file = Path(self.tmp.name) / "exdev_source.tmp"
+        tmp_file.write_text("exdev backup data")
+        dest_path = Path(self.tmp.name) / "exdev_dest.db"
+
+        from hostdelta.store import _publish_no_clobber
+        with patch("os.link", side_effect=OSError(errno.EXDEV, "Cross-device link")):
+            _publish_no_clobber(str(tmp_file), str(dest_path))
+
+        self.assertTrue(dest_path.is_file())
+        self.assertEqual(dest_path.read_text(), "exdev backup data")
+        self.assertFalse(tmp_file.exists())
+
+    def test_fallback_preserves_permissions(self):
+        tmp_file = Path(self.tmp.name) / "perm_source.tmp"
+        tmp_file.write_text("perm backup data")
+        os.chmod(tmp_file, 0o640)
+        dest_path = Path(self.tmp.name) / "perm_dest.db"
+
+        from hostdelta.store import _publish_no_clobber
+        with patch("os.link", side_effect=OSError(errno.EXDEV, "Cross-device link")):
+            _publish_no_clobber(str(tmp_file), str(dest_path))
+
+        mode = dest_path.stat().st_mode & 0o777
+        self.assertEqual(mode, 0o640)
+
+    def test_unrelated_oserror_is_not_masked(self):
+        tmp_file = Path(self.tmp.name) / "nospc_source.tmp"
+        tmp_file.write_text("data")
+        dest_path = Path(self.tmp.name) / "nospc_dest.db"
+
+        from hostdelta.store import _publish_no_clobber
+        with patch("os.link", side_effect=OSError(errno.ENOSPC, "No space left on device")):
+            with self.assertRaises(OSError) as cm:
+                _publish_no_clobber(str(tmp_file), str(dest_path))
+            self.assertEqual(cm.exception.errno, errno.ENOSPC)
+
+    def test_windows_rename_no_clobber(self):
+        tmp_file = Path(self.tmp.name) / "win_source.tmp"
+        tmp_file.write_text("win data")
+        dest_path = Path(self.tmp.name) / "win_dest.db"
+        dest_path.write_text("existing win content")
+
+        from hostdelta.store import _publish_no_clobber
+        with patch("os.name", "nt"), patch("os.rename", side_effect=FileExistsError("File exists")):
+            with self.assertRaises(ValueError) as cm:
+                _publish_no_clobber(str(tmp_file), str(dest_path))
+            self.assertIn("already exists", str(cm.exception))
+
+        self.assertEqual(dest_path.read_text(), "existing win content")
+        self.assertFalse(tmp_file.exists())
+
+    def test_partial_copy_failure_removes_partial_dest(self):
+        tmp_file = Path(self.tmp.name) / "partial_source.tmp"
+        tmp_file.write_text("partial copy data")
+        dest_path = Path(self.tmp.name) / "partial_dest.db"
+
+        from hostdelta.store import _publish_no_clobber
+        with patch("os.link", side_effect=OSError(errno.EXDEV, "Cross-device link")), \
+             patch("shutil.copyfileobj", side_effect=RuntimeError("Mid-copy disk failure")):
+            with self.assertRaises(RuntimeError):
+                _publish_no_clobber(str(tmp_file), str(dest_path))
+
+        self.assertFalse(dest_path.exists())
+        self.assertFalse(tmp_file.exists())
 
 
 if __name__ == "__main__":

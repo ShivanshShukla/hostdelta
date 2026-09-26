@@ -1,14 +1,13 @@
-from contextlib import redirect_stdout, redirect_stderr
-from datetime import datetime, timezone
 import errno
 import io
 import json
 import os
-from pathlib import Path
-import shutil
 import sqlite3
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
+from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import patch
 
 from hostdelta import cli
@@ -49,14 +48,14 @@ class BackupTests(unittest.TestCase):
     def test_backup_success_and_permissions(self):
         dest_path = Path(self.tmp.name) / "backups" / "backup.db"
         dest_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         result = self.store.backup(dest_path)
         self.assertEqual(result["version"], 1)
         self.assertEqual(result["status"], "success")
         self.assertEqual(result["destination"], str(dest_path))
         self.assertGreater(result["size_bytes"], 0)
         self.assertTrue(dest_path.is_file())
-        
+
         # Private permissions mode 0600
         mode = dest_path.stat().st_mode & 0o777
         self.assertEqual(mode, 0o600)
@@ -75,7 +74,7 @@ class BackupTests(unittest.TestCase):
     def test_refuse_existing_file(self):
         dest_path = Path(self.tmp.name) / "existing.db"
         dest_path.write_text("initial contents")
-        
+
         with self.assertRaises(ValueError) as cm:
             self.store.backup(dest_path)
         self.assertIn("already exists", str(cm.exception))
@@ -85,7 +84,7 @@ class BackupTests(unittest.TestCase):
         target_path = Path(self.tmp.name) / "target.db"
         symlink_path = Path(self.tmp.name) / "symlink.db"
         symlink_path.symlink_to(target_path)
-        
+
         with self.assertRaises(ValueError) as cm:
             self.store.backup(symlink_path)
         self.assertIn("symlink", str(cm.exception))
@@ -94,11 +93,11 @@ class BackupTests(unittest.TestCase):
     def test_refuse_aliasing(self):
         source_db = self.state_dir / "state.sqlite3"
         inside_dir = self.state_dir / "backup.db"
-        
+
         with self.assertRaises(ValueError) as cm1:
             self.store.backup(source_db)
         self.assertIn("alias", str(cm1.exception))
-        
+
         with self.assertRaises(ValueError) as cm2:
             self.store.backup(inside_dir)
         self.assertIn("alias", str(cm2.exception))
@@ -112,13 +111,13 @@ class BackupTests(unittest.TestCase):
 
     def test_bounded_timeout_under_lock(self):
         dest_path = Path(self.tmp.name) / "timeout_backup.db"
-        
+
         # Lock source database with an exclusive transaction in DELETE journal mode to force lock contention
         source_db_path = self.state_dir / "state.sqlite3"
         self.store.db.execute("PRAGMA journal_mode=DELETE")
         writer = sqlite3.connect(source_db_path, timeout=0.1)
         writer.execute("BEGIN EXCLUSIVE")
-        
+
         try:
             with self.assertRaises((TimeoutError, sqlite3.OperationalError)):
                 self.store.backup(dest_path, timeout=0.1)
@@ -131,7 +130,7 @@ class BackupTests(unittest.TestCase):
     def test_restored_backup_integrity(self):
         dest_path = Path(self.tmp.name) / "integrity_backup.db"
         self.store.backup(dest_path)
-        
+
         # Read backup DB directly without running migrations or Store init
         target_conn = sqlite3.connect(dest_path)
         target_conn.row_factory = sqlite3.Row
@@ -139,13 +138,13 @@ class BackupTests(unittest.TestCase):
             snapshots = target_conn.execute("SELECT * FROM snapshots WHERE id=?", (self.snap_id,)).fetchall()
             self.assertEqual(len(snapshots), 1)
             self.assertEqual(json.loads(snapshots[0]["payload"]), sample_snapshot())
-            
+
             setting = target_conn.execute("SELECT value FROM settings WHERE key=?", ("consumer:agent-a",)).fetchone()
             self.assertEqual(json.loads(setting[0]), stamp(NOW))
-            
+
             events = target_conn.execute("SELECT * FROM events WHERE id=?", (self.event_id,)).fetchall()
             self.assertEqual(len(events), 1)
-            
+
             checkpoints = target_conn.execute("SELECT * FROM checkpoints WHERE source=?", ("journalctl",)).fetchall()
             self.assertEqual(len(checkpoints), 1)
             self.assertEqual(json.loads(checkpoints[0]["payload"]), {"cursor": "c1"})
@@ -168,7 +167,7 @@ class BackupTests(unittest.TestCase):
             with self.assertRaises(ValueError) as cm:
                 self.store.backup(dest_path)
             self.assertIn("already exists", str(cm.exception))
-        
+
         self.assertEqual(target_sensitive.read_text(), "sensitive data")
 
     def test_publish_link_success_removes_tmp(self):
@@ -189,14 +188,14 @@ class BackupTests(unittest.TestCase):
 
         self.store.backup(dest_success)
         self.assertTrue(dest_success.exists())
-        leftover_dirs_1 = [p for p in Path(self.tmp.name).glob(".hostdelta-backup-*")]
+        leftover_dirs_1 = list(Path(self.tmp.name).glob(".hostdelta-backup-*"))
         self.assertEqual(leftover_dirs_1, [])
 
         with patch("sqlite3.connect", side_effect=sqlite3.OperationalError("disk error")):
             with self.assertRaises(sqlite3.OperationalError):
                 self.store.backup(dest_failure)
         self.assertFalse(dest_failure.exists())
-        leftover_dirs_2 = [p for p in Path(self.tmp.name).glob(".hostdelta-backup-*")]
+        leftover_dirs_2 = list(Path(self.tmp.name).glob(".hostdelta-backup-*"))
         self.assertEqual(leftover_dirs_2, [])
 
     def test_publish_fails_when_dest_preexists(self):

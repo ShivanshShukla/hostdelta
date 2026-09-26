@@ -29,6 +29,17 @@ def _safe_unlink(path: str) -> None:
 
 
 def _publish_no_clobber(tmp_path: str, dest: str) -> None:
+    """
+    Safely install tmp_path at dest without overwriting an existing destination.
+
+    On POSIX (common case, same filesystem), os.link provides an atomic
+    publication of the completed backup file with kernel-enforced EEXIST protection.
+
+    If hard links are restricted (EXDEV/EPERM/EMLINK), the fallback O_EXCL stream
+    copy guarantees strict no-clobber creation (failing atomically if dest exists
+    or is created concurrently), though dest is exposed during streaming copy
+    before completion. Incomplete partial files are unlinked on error.
+    """
     if os.name == "nt":
         _publish_no_clobber_windows(tmp_path, dest)
     else:

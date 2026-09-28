@@ -117,6 +117,18 @@ hostdelta backup /private/backup/hostdelta.sqlite3 --json
 
 `hostdelta backup` uses SQLite's backup API to capture committed WAL state safely. It enforces strict file safety by refusing existing target files, symlinks, and state-directory aliasing. Destination files are created with private permissions (`0o600`). On POSIX systems, it uses atomic `os.link` to publish the completed backup (falling back to strict `O_EXCL` streaming copy on hardlink-restricted mounts). Incomplete backups are automatically unlinked on failure or lock-contention timeout.
 
+When run with `--json`, it outputs a standard success payload:
+
+```json
+{
+  "schema_version": 1,
+  "type": "backup",
+  "status": "success",
+  "destination": "/private/backup/hostdelta.sqlite3",
+  "size_bytes": 123456
+}
+```
+
 Do not copy just the main database file while WAL writers are active. Alternatively, stop all writers and back up the complete private state directory. Raw source logs are not included in the database backup; only collected normalized evidence is.
 
 ## Upgrade and rollback

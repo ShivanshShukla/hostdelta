@@ -2,6 +2,7 @@
 
 import errno
 import json
+import math
 import os
 import re
 import shutil
@@ -150,6 +151,13 @@ class Store:
         self.db.close()
 
     def backup(self, destination, timeout=30.0):
+        try:
+            timeout = float(timeout)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Timeout must be a positive finite number.") from exc
+        if not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError("Timeout must be a positive finite number.")
+
         dest = Path(destination).expanduser().absolute()
         source_path = self.directory / "state.sqlite3"
 
@@ -184,7 +192,7 @@ class Store:
 
             os.chmod(tmp_file, 0o600)
             _publish_no_clobber(str(tmp_file), str(dest))
-            return {"version": 1, "status": "success", "destination": str(dest), "size_bytes": dest.stat().st_size}
+            return {"schema_version": 1, "type": "backup", "status": "success", "destination": str(dest), "size_bytes": dest.stat().st_size}
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 

@@ -41,8 +41,11 @@ class BackupTests(unittest.TestCase):
 
     def invoke_cli(self, *args):
         stdout, stderr = io.StringIO(), io.StringIO()
-        with redirect_stdout(stdout), redirect_stderr(stderr):
-            status = cli.main(list(args))
+        try:
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                status = cli.main(list(args))
+        except SystemExit as e:
+            status = e.code
         return status, stdout.getvalue(), stderr.getvalue()
 
     def test_backup_success_and_permissions(self):
@@ -50,7 +53,8 @@ class BackupTests(unittest.TestCase):
         dest_path.parent.mkdir(parents=True, exist_ok=True)
 
         result = self.store.backup(dest_path)
-        self.assertEqual(result["version"], 1)
+        self.assertEqual(result["schema_version"], 1)
+        self.assertEqual(result["type"], "backup")
         self.assertEqual(result["status"], "success")
         self.assertEqual(result["destination"], str(dest_path))
         self.assertGreater(result["size_bytes"], 0)
@@ -66,7 +70,8 @@ class BackupTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(err, "")
         payload = json.loads(out)
-        self.assertEqual(payload["version"], 1)
+        self.assertEqual(payload["schema_version"], 1)
+        self.assertEqual(payload["type"], "backup")
         self.assertEqual(payload["status"], "success")
         self.assertEqual(payload["destination"], str(dest_path.absolute()))
         self.assertEqual(payload["size_bytes"], dest_path.stat().st_size)
@@ -126,6 +131,27 @@ class BackupTests(unittest.TestCase):
             writer.rollback()
             writer.close()
             self.store.db.execute("PRAGMA journal_mode=WAL")
+
+    def test_refuse_invalid_timeout(self):
+        dest_path = Path(self.tmp.name) / "invalid_timeout.db"
+        for invalid in (float("nan"), float("inf"), float("-inf"), 0, -1.0, -10, "invalid", None):
+            with self.subTest(timeout=invalid):
+                with self.assertRaises(ValueError) as cm:
+                    self.store.backup(dest_path, timeout=invalid)
+                self.assertIn("positive finite number", str(cm.exception))
+        self.assertFalse(dest_path.exists())
+
+    def test_cli_refuse_invalid_timeout(self):
+        dest_path = Path(self.tmp.name) / "cli_invalid_timeout.db"
+        for timeout_arg in ("nan", "inf", "-inf", "0", "-1.0"):
+            with self.subTest(timeout_arg=timeout_arg):
+                code, out, err = self.invoke_cli("--state-dir", str(self.state_dir), "backup", str(dest_path), f"--timeout={timeout_arg}", "--json")
+                self.assertEqual(code, 1)
+                self.assertFalse(dest_path.exists())
+                error_payload = json.loads(err)
+                self.assertEqual(error_payload["schema_version"], 1)
+                self.assertEqual(error_payload["type"], "error")
+                self.assertIn("positive finite number", error_payload["error"])
 
     def test_restored_backup_integrity(self):
         dest_path = Path(self.tmp.name) / "integrity_backup.db"

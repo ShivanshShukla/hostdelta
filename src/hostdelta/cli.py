@@ -322,8 +322,6 @@ fi''')
             index = store.record(event)
             emit({"schema_version": 1, "type": "record", "id": index, "event": event}, args.json, f"Recorded agent event #{index}")
         elif args.command == "backup":
-            if args.timeout <= 0:
-                raise ValueError("Timeout must be positive.")
             result = store.backup(args.destination, timeout=args.timeout)
             emit(result, args.json, f"Backup saved to {result['destination']} ({result['size_bytes']} bytes)")
         return 0
